@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Mini ERP Lager</title>
+
+<style>
+body { font-family: Arial; padding: 20px; background:#f4f4f4; }
+.card { background:white; padding:10px; margin:10px 0; border-radius:8px; }
+.bestill { color:red; font-weight:bold; }
+button { padding:6px 10px; margin:3px; cursor:pointer; }
+input { padding:6px; margin:5px; }
+canvas { background:white; border-radius:8px; padding:10px; }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+<body>
+
+<h1>📦 Mini ERP Lager</h1>
+
+<input id="search" placeholder="🔍 Søk vare..." oninput="render()">
+
+<h3>➕ Legg til produkt</h3>
+<input id="name" placeholder="Navn">
+<input id="stock" placeholder="Start lager">
+<input id="min" placeholder="Minimum">
+<button onclick="addItem()">Legg til</button>
+
+<div id="app"></div>
+
+<h3>📊 Lager (nåværende)</h3>
+<canvas id="chartStock"></canvas>
+
+<h3>📉 Historisk utvikling (valgt vare)</h3>
+<select id="historySelect" onchange="renderHistory()"></select>
+<canvas id="chartHistory"></canvas>
+
+<script>
+
+let items = JSON.parse(localStorage.getItem("erp")) || {
+"SCOTCH TAPE": { stock: 100, min: 30, usage: 2.5, lastOrder: 0, history: [] },
+"Strips": { stock: 2000, min: 500, usage: 35, lastOrder: 0, history: [] },
+"Wago": { stock: 60, min: 10, usage: 2, lastOrder: 0, history: [] },
+"Kabel": { stock: 200, min: 50, usage: 8, lastOrder: 0, history: [] }
+};
+
+let stockChart;
+let historyChart;
+
+function save(){
+  localStorage.setItem("erp", JSON.stringify(items));
+}
+
+// ➕ legg til
+function addItem(){
+
+  let n = document.getElementById("name").value;
+  let s = parseFloat(document.getElementById("stock").value);
+  let m = parseFloat(document.getElementById("min").value);
+
+  if(!n) return;
+
+  items[n] = {
+    stock: s || 0,
+    min: m || 0,
+    usage: 1,
+    lastOrder: 0,
+    history: []
+  };
+
+  save();
+  render();
+}
+
+// 📦 bestilling
+function order(name, force=false){
+
+  let item = items[name];
+
+  let target = item.min * 1.6;
+  let amount = target - item.stock;
+
+  if(amount < 0) amount = 0;
+
+  if(force){
+    let manual = prompt("Hvor mye vil du bestille?");
+    manual = parseFloat(manual);
+    if(isNaN(manual)) return;
+    amount = manual;
+  }
+
+  item.stock += amount;
+  item.lastOrder = 0;
+
+  save();
+  render();
+}
+
+// ➖ juster
+function adjust(name){
+
+  let val = prompt("Trekk fra lager:");
+  val = parseFloat(val);
+
+  if(isNaN(val)) return;
+
+  items[name].stock -= val;
+  if(items[name].stock < 0) items[name].stock = 0;
+
+  save();
+  render();
+}
+
+// 🔄 simulering + historikk
+function simulate(){
+
+  for(let i in items){
+
+    let base = items[i].usage;
+    let variation = base * (0.7 + Math.random() * 0.6);
+
+    items[i].stock -= variation;
+    if(items[i].stock < 0) items[i].stock = 0;
+
+    items[i].lastOrder++;
+
+    if(!items[i].history) items[i].history = [];
+    items[i].history.push(items[i].stock);
+
+    if(items[i].history.length > 30){
+      items[i].history.shift();
+    }
+  }
+
+  save();
+  render();
+}
+
+// 📌 sort
+function sortedKeys(){
+
+  return Object.keys(items).sort((a,b)=>{
+
+    let aCrit = items[a].stock <= items[a].min;
+    let bCrit = items[b].stock <= items[b].min;
+
+    if(aCrit !== bCrit){
+      return bCrit - aCrit;
+    }
+
+    return items[a].stock - items[b].stock;
+  });
+}
+
+// 📊 nåværende lager graf
+function drawStockChart(){
+
+  let labels = Object.keys(items);
+  let data = labels.map(i => items[i].stock);
+
+  if(stockChart) stockChart.destroy();
+
+  stockChart = new Chart(document.getElementById("chartStock"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Lager",
+        data,
+        backgroundColor: "rgba(54, 162, 235, 0.6)"
+      }]
+    },
+    options: { responsive:true, animation:false }
+  });
+}
+
+// 📉 historisk graf
+function renderHistory(){
+
+  let name = document.getElementById("historySelect").value;
+  if(!name || !items[name]) return;
+
+  let hist = items[name].history || [];
+
+  if(historyChart) historyChart.destroy();
+
+  historyChart = new Chart(document.getElementById("chartHistory"), {
+    type: "line",
+    data: {
+      labels: hist.map((_,i)=>i),
+      datasets: [{
+        label: name,
+        data: hist,
+        borderColor: "red",
+        fill: false,
+        tension: 0.3
+      }]
+    },
+    options: { responsive:true, animation:false }
+  });
+}
+
+// 📺 render
+function render(){
+
+  let q = document.getElementById("search").value.toLowerCase();
+  let html = "";
+
+  let keys = sortedKeys();
+
+  // dropdown for historikk
+  let select = document.getElementById("historySelect");
+  select.innerHTML = Object.keys(items)
+    .map(i => `<option value="${i}">${i}</option>`)
+    .join("");
+
+  let critical = Object.keys(items).filter(i => items[i].stock <= items[i].min);
+
+  if(critical.length > 0){
+    html += `
+    <div class="card" style="border:2px solid red;">
+      <h3>⚠️ KRITISKE VARER (${critical.length})</h3>
+      <p>${critical.join(", ")}</p>
+    </div>
+    `;
+  }
+
+  for(let i of keys){
+
+    if(!i.toLowerCase().includes(q)) continue;
+
+    let it = items[i];
+    let crit = it.stock <= it.min;
+
+    html += `
+    <div class="card">
+      <b>${i}</b><br>
+      📦 ${Math.round(it.stock)}<br>
+      📉 Min: ${it.min}<br>
+      ⏱ Dager siden bestilling: ${it.lastOrder}<br>
+      ${crit ? '<div class="bestill">🔴 BESTILL</div>' : ''}
+
+      <button onclick="order('${i}')">📦 Smart</button>
+      <button onclick="order('${i}', true)">🧾 Manuell</button>
+      <button onclick="adjust('${i}')">➖ Juster</button>
+    </div>
+    `;
+  }
+
+  document.getElementById("app").innerHTML = html;
+
+  drawStockChart();
+  renderHistory();
+}
+
+setInterval(simulate, 5000);
+
+render();
+
+</script>
+
+</body>
+</html>
