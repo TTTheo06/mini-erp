@@ -18,7 +18,7 @@ canvas { background:white; border-radius:8px; padding:10px; }
 </head>
 <body>
 
-<h1>📦 Mini ERP Lager</h1>
+<h1>📦 Mini ERP Lager (LIVE)</h1>
 
 <input id="search" placeholder="🔍 Søk vare..." oninput="render()">
 
@@ -37,24 +37,46 @@ canvas { background:white; border-radius:8px; padding:10px; }
 <select id="historySelect" onchange="renderHistory()"></select>
 <canvas id="chartHistory"></canvas>
 
-<script>
+<script type="module">
 
-let items = JSON.parse(localStorage.getItem("erp")) || {
-"SCOTCH TAPE": { stock: 100, min: 30, usage: 2.5, lastOrder: 0, history: [] },
-"Strips": { stock: 2000, min: 500, usage: 35, lastOrder: 0, history: [] },
-"Wago": { stock: 60, min: 10, usage: 2, lastOrder: 0, history: [] },
-"Kabel": { stock: 200, min: 50, usage: 8, lastOrder: 0, history: [] }
+// 🔥 FIREBASE
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAZYW2kj0E66NvGPLdIcTqBc4TgmuGWQkQ",
+  authDomain: "minierp-dc40c.firebaseapp.com",
+  projectId: "minierp-dc40c",
+  storageBucket: "minierp-dc40c.firebasestorage.app",
+  messagingSenderId: "470500148683",
+  appId: "1:470500148683:web:ac8f1ff82296bee436e24e"
 };
 
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// 🧠 DATA
+let items = {};
 let stockChart;
 let historyChart;
 
+// 🔄 LIVE SYNC FRA FIRESTORE
+onSnapshot(doc(db, "erp", "shared"), (docSnap) => {
+
+  if(docSnap.exists()){
+    items = docSnap.data().items;
+  }
+
+  render();
+});
+
+// 💾 LAGRE TIL FIRESTORE
 function save(){
-  localStorage.setItem("erp", JSON.stringify(items));
+  setDoc(doc(db, "erp", "shared"), { items });
 }
 
 // ➕ legg til
-function addItem(){
+window.addItem = function(){
 
   let n = document.getElementById("name").value;
   let s = parseFloat(document.getElementById("stock").value);
@@ -71,11 +93,10 @@ function addItem(){
   };
 
   save();
-  render();
 }
 
-// ⚙️ REDIGER (NY)
-function editItem(name){
+// ⚙️ rediger
+window.editItem = function(name){
 
   let item = items[name];
 
@@ -89,11 +110,10 @@ function editItem(name){
   if(!isNaN(newUsage)) item.usage = newUsage;
 
   save();
-  render();
 }
 
 // 📦 bestilling
-function order(name, force=false){
+window.order = function(name, force=false){
 
   let item = items[name];
 
@@ -113,11 +133,10 @@ function order(name, force=false){
   item.lastOrder = 0;
 
   save();
-  render();
 }
 
-// ➖ juster lager
-function adjust(name){
+// ➖ juster
+window.adjust = function(name){
 
   let val = prompt("Trekk fra lager:");
   val = parseFloat(val);
@@ -128,10 +147,9 @@ function adjust(name){
   if(items[name].stock < 0) items[name].stock = 0;
 
   save();
-  render();
 }
 
-// 🔄 simulering + historikk
+// 🔄 simulering
 function simulate(){
 
   for(let i in items){
@@ -153,7 +171,6 @@ function simulate(){
   }
 
   save();
-  render();
 }
 
 // 📌 sortering
@@ -195,7 +212,7 @@ function drawStockChart(){
 }
 
 // 📉 historisk graf
-function renderHistory(){
+window.renderHistory = function(){
 
   let name = document.getElementById("historySelect").value;
   if(!name || !items[name]) return;
@@ -212,11 +229,9 @@ function renderHistory(){
         label: name,
         data: hist,
         borderColor: "red",
-        fill: false,
-        tension: 0.3
+        fill: false
       }]
-    },
-    options: { responsive:true, animation:false }
+    }
   });
 }
 
@@ -228,13 +243,11 @@ function render(){
 
   let keys = sortedKeys();
 
-  // dropdown historikk
   let select = document.getElementById("historySelect");
   select.innerHTML = Object.keys(items)
     .map(i => `<option value="${i}">${i}</option>`)
     .join("");
 
-  // kritiske varer
   let critical = Object.keys(items).filter(i => items[i].stock <= items[i].min);
 
   if(critical.length > 0){
@@ -242,8 +255,7 @@ function render(){
     <div class="card" style="border:2px solid red;">
       <h3>⚠️ KRITISKE VARER (${critical.length})</h3>
       <p>${critical.join(", ")}</p>
-    </div>
-    `;
+    </div>`;
   }
 
   for(let i of keys){
@@ -256,9 +268,9 @@ function render(){
     html += `
     <div class="card">
       <b>${i}</b><br>
-      📦 Lager: ${Math.round(it.stock)}<br>
-      📉 Minimum: ${it.min}<br>
-      ⏱ Dager siden bestilling: ${it.lastOrder}<br>
+      📦 ${Math.round(it.stock)}<br>
+      📉 Min: ${it.min}<br>
+      ⏱ ${it.lastOrder} dager siden<br>
 
       ${crit ? '<div class="bestill">🔴 BESTILL</div>' : ''}
 
@@ -266,8 +278,7 @@ function render(){
       <button onclick="order('${i}', true)">🧾 Manuell</button>
       <button onclick="adjust('${i}')">➖ Juster</button>
       <button onclick="editItem('${i}')">⚙️ Rediger</button>
-    </div>
-    `;
+    </div>`;
   }
 
   document.getElementById("app").innerHTML = html;
@@ -276,9 +287,8 @@ function render(){
   renderHistory();
 }
 
+// start simulering
 setInterval(simulate, 5000);
-
-render();
 
 </script>
 
