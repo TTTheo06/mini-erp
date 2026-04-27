@@ -64,7 +64,17 @@ let historyChart;
 onSnapshot(doc(db, "erp", "shared"), (docSnap) => {
 
   if(docSnap.exists()){
-    items = docSnap.data().items;
+
+    let newItems = docSnap.data().items;
+
+    for(let i in newItems){
+
+      if(!newItems[i].lastUpdate){
+        newItems[i].lastUpdate = Date.now();
+      }
+    }
+
+    items = newItems;
   }
 
   render();
