@@ -84,14 +84,15 @@ window.addItem = function(){
 
   if(!n) return;
 
-  items[n] = {
-    stock: s || 0,
-    min: m || 0,
-    usage: 1,
-    lastOrder: 0,
-    history: []
-  };
-
+ items[n] = {
+  stock: s || 0,
+  min: m || 0,
+  usage: 1,
+  lastOrder: 0,
+  history: [],
+  lastUpdate: Date.now()
+};
+  
   save();
 }
 
@@ -248,6 +249,8 @@ window.renderHistory = function(){
 // 📺 render
 function render(){
 
+applyRealConsumption();
+  
   let q = document.getElementById("search").value.toLowerCase();
   let html = "";
 
@@ -298,8 +301,35 @@ function render(){
   renderHistory();
 }
 
-// start simulering
-setInterval(simulate, 5000);
+function applyRealConsumption(){
+
+  let now = Date.now();
+
+  for(let i in items){
+
+    let item = items[i];
+
+    if(!item.lastUpdate){
+      item.lastUpdate = now;
+      continue;
+    }
+
+    let diffMs = now - item.lastUpdate;
+    let days = diffMs / (1000 * 60 * 60 * 24);
+
+    if(days > 0){
+
+      let used = item.usage * days;
+
+      item.stock -= used;
+      if(item.stock < 0) item.stock = 0;
+
+      item.lastOrder += days;
+
+      item.lastUpdate = now;
+    }
+  }
+}
 
 </script>
 
