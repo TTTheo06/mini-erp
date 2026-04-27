@@ -321,7 +321,6 @@ function applyRealConsumption(){
 
     if(!item.lastUpdate){
       item.lastUpdate = now;
-      continue;
     }
 
     let diffMs = now - item.lastUpdate;
@@ -336,7 +335,7 @@ function applyRealConsumption(){
 
       item.lastOrder += days;
 
-      item.lastUpdate = now;
+      // 🔴 VIKTIG: ikke oppdater lastUpdate her
     }
   }
 }
