@@ -148,6 +148,16 @@ window.adjust = function(name){
 
   save();
 }
+  window.deleteItem = function(name){
+
+  let ok = confirm("Vil du slette " + name + "?");
+
+  if(!ok) return;
+
+  delete items[name];
+
+  save();
+}
 
 // 🔄 simulering
 function simulate(){
@@ -278,6 +288,7 @@ function render(){
       <button onclick="order('${i}', true)">🧾 Manuell</button>
       <button onclick="adjust('${i}')">➖ Juster</button>
       <button onclick="editItem('${i}')">⚙️ Rediger</button>
+      <button onclick="deleteItem('${i}')">🗑 Slett</button>
     </div>`;
   }
 
