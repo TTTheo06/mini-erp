@@ -82,6 +82,7 @@ onSnapshot(doc(db, "erp", "shared"), (docSnap) => {
 
 // 💾 LAGRE TIL FIRESTORE
 function save(){
+  applyRealConsumption(); // 👈 viktig
   setDoc(doc(db, "erp", "shared"), { items });
 }
 
@@ -258,8 +259,6 @@ window.renderHistory = function(){
 
 // 📺 render
 function render(){
-
-applyRealConsumption();
   
   let q = document.getElementById("search").value.toLowerCase();
   let html = "";
