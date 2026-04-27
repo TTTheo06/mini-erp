@@ -33,7 +33,7 @@ canvas { background:white; border-radius:8px; padding:10px; }
 <h3>📊 Lager (nåværende)</h3>
 <canvas id="chartStock"></canvas>
 
-<h3>📉 Historisk utvikling (valgt vare)</h3>
+<h3>📉 Historisk utvikling</h3>
 <select id="historySelect" onchange="renderHistory()"></select>
 <canvas id="chartHistory"></canvas>
 
@@ -74,6 +74,24 @@ function addItem(){
   render();
 }
 
+// ⚙️ REDIGER (NY)
+function editItem(name){
+
+  let item = items[name];
+
+  let newMin = prompt("Nytt minimum:", item.min);
+  let newUsage = prompt("Forbruk per dag:", item.usage);
+
+  newMin = parseFloat(newMin);
+  newUsage = parseFloat(newUsage);
+
+  if(!isNaN(newMin)) item.min = newMin;
+  if(!isNaN(newUsage)) item.usage = newUsage;
+
+  save();
+  render();
+}
+
 // 📦 bestilling
 function order(name, force=false){
 
@@ -98,7 +116,7 @@ function order(name, force=false){
   render();
 }
 
-// ➖ juster
+// ➖ juster lager
 function adjust(name){
 
   let val = prompt("Trekk fra lager:");
@@ -138,7 +156,7 @@ function simulate(){
   render();
 }
 
-// 📌 sort
+// 📌 sortering
 function sortedKeys(){
 
   return Object.keys(items).sort((a,b)=>{
@@ -154,7 +172,7 @@ function sortedKeys(){
   });
 }
 
-// 📊 nåværende lager graf
+// 📊 lager graf
 function drawStockChart(){
 
   let labels = Object.keys(items);
@@ -210,12 +228,13 @@ function render(){
 
   let keys = sortedKeys();
 
-  // dropdown for historikk
+  // dropdown historikk
   let select = document.getElementById("historySelect");
   select.innerHTML = Object.keys(items)
     .map(i => `<option value="${i}">${i}</option>`)
     .join("");
 
+  // kritiske varer
   let critical = Object.keys(items).filter(i => items[i].stock <= items[i].min);
 
   if(critical.length > 0){
@@ -237,14 +256,16 @@ function render(){
     html += `
     <div class="card">
       <b>${i}</b><br>
-      📦 ${Math.round(it.stock)}<br>
-      📉 Min: ${it.min}<br>
+      📦 Lager: ${Math.round(it.stock)}<br>
+      📉 Minimum: ${it.min}<br>
       ⏱ Dager siden bestilling: ${it.lastOrder}<br>
+
       ${crit ? '<div class="bestill">🔴 BESTILL</div>' : ''}
 
       <button onclick="order('${i}')">📦 Smart</button>
       <button onclick="order('${i}', true)">🧾 Manuell</button>
       <button onclick="adjust('${i}')">➖ Juster</button>
+      <button onclick="editItem('${i}')">⚙️ Rediger</button>
     </div>
     `;
   }
