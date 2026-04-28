@@ -201,7 +201,7 @@ items[n] = {
   stock: s || 0,
   min: m || 0,
   usage: 1,
-  unit: u,   // 👈 NY
+  unit: document.getElementById("unit").value, // 👈 NY
   lastOrder: 0,
   history: [],
   lastUpdate: Date.now()
