@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <title>Mini ERP Lager</title>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
 body { font-family: Arial; padding: 20px; background:#f4f4f4; }
 .card { background:white; padding:10px; margin:10px 0; border-radius:8px; }
@@ -15,8 +13,9 @@ input { padding:6px; margin:5px; }
 canvas { background:white; border-radius:8px; padding:10px; }
 </style>
 
-</head>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+</head>
 <body>
 
 <h1>📦 Mini ERP Lager (LIVE)</h1>
@@ -28,14 +27,13 @@ canvas { background:white; border-radius:8px; padding:10px; }
 <input id="stock" placeholder="Start lager">
 <input id="min" placeholder="Minimum">
 <button onclick="addItem()">Legg til</button>
-<button onclick="bulkImport()">Import varer</button>
 
 <div id="app"></div>
 
-<h3>📊 Lager</h3>
+<h3>📊 Lager (nåværende)</h3>
 <canvas id="chartStock"></canvas>
 
-<h3>📉 Historikk</h3>
+<h3>📉 Historisk utvikling</h3>
 <select id="historySelect" onchange="renderHistory()"></select>
 <canvas id="chartHistory"></canvas>
 
@@ -56,37 +54,33 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 🧠 DATA
 let items = {};
 let stockChart;
 let historyChart;
 
-// 🔄 SYNC
-onSnapshot(doc(db, "erp", "shared"), (snap) => {
-  if (snap.exists()) {
-    items = snap.data().items || {};
+// 🔄 LIVE SYNC
+onSnapshot(doc(db, "erp", "shared"), (docSnap) => {
+  if(docSnap.exists()){
+    items = docSnap.data().items || {};
   } else {
     items = {};
   }
-
-  applyRealConsumption();
   render();
 });
 
 // 💾 SAVE
-function save() {
-  if (!items) return;
+function save(){
+  applyRealConsumption();
   setDoc(doc(db, "erp", "shared"), { items });
 }
 
 // ➕ ADD
-window.addItem = function () {
-
+window.addItem = function(){
   let n = document.getElementById("name").value;
   let s = parseFloat(document.getElementById("stock").value);
   let m = parseFloat(document.getElementById("min").value);
 
-  if (!n) return;
+  if(!n) return;
 
   items[n] = {
     stock: s || 0,
@@ -98,145 +92,171 @@ window.addItem = function () {
   };
 
   save();
-};
+}
 
-// 📦 BULK IMPORT
-window.bulkImport = function () {
-
-  const now = Date.now();
-
-  items = {
-    ...items,
-    "Plaststrips (1342076)": { stock: 2000, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: now },
-    "16A EX STIKK (1501199)": { stock: 15, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: now },
-    "RKK 10mm2 (1010403)": { stock: 50, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: now }
-  };
-
-  save();
-};
-
-// 📦 ORDER
-window.order = function (name, force = false) {
-
+// ⚙️ EDIT
+window.editItem = function(name){
   let item = items[name];
 
-  let amount = item.min * 1.6 - item.stock;
-  if (amount < 0) amount = 0;
+  let newMin = prompt("Nytt minimum:", item.min);
+  let newUsage = prompt("Forbruk per dag:", item.usage);
 
-  if (force) {
-    amount = parseFloat(prompt("Hvor mye?")) || 0;
+  if(!isNaN(parseFloat(newMin))) item.min = parseFloat(newMin);
+  if(!isNaN(parseFloat(newUsage))) item.usage = parseFloat(newUsage);
+
+  save();
+}
+
+// 📦 ORDER
+window.order = function(name, force=false){
+  let item = items[name];
+
+  let target = item.min * 1.6;
+  let amount = target - item.stock;
+
+  if(amount < 0) amount = 0;
+
+  if(force){
+    let manual = parseFloat(prompt("Hvor mye vil du bestille?"));
+    if(isNaN(manual)) return;
+    amount = manual;
   }
 
   item.stock += amount;
   item.lastOrder = 0;
 
   save();
-};
+}
 
 // ➖ ADJUST
-window.adjust = function (name) {
-
-  let val = parseFloat(prompt("Trekk fra:"));
-  if (isNaN(val)) return;
+window.adjust = function(name){
+  let val = parseFloat(prompt("Trekk fra lager:"));
+  if(isNaN(val)) return;
 
   items[name].stock -= val;
-  if (items[name].stock < 0) items[name].stock = 0;
+  if(items[name].stock < 0) items[name].stock = 0;
 
   save();
-};
+}
 
 // 🗑 DELETE
-window.deleteItem = function (name) {
+window.deleteItem = function(name){
+  if(!confirm("Vil du slette " + name + "?")) return;
   delete items[name];
   save();
-};
+}
 
-// 📊 CHART
-function drawChart() {
+// 📌 SORT
+function sortedKeys(){
+  return Object.keys(items).sort((a,b)=>{
+    let aCrit = items[a].stock <= items[a].min;
+    let bCrit = items[b].stock <= items[b].min;
 
+    if(aCrit !== bCrit) return bCrit - aCrit;
+    return items[a].stock - items[b].stock;
+  });
+}
+
+// 📊 STOCK CHART
+function drawStockChart(){
   let labels = Object.keys(items);
   let data = labels.map(i => items[i].stock);
 
-  if (stockChart) stockChart.destroy();
+  if(stockChart) stockChart.destroy();
 
   stockChart = new Chart(document.getElementById("chartStock"), {
     type: "bar",
     data: {
       labels,
-      datasets: [{ label: "Lager", data }]
-    }
+      datasets: [{
+        label: "Lager",
+        data,
+        backgroundColor: "rgba(54, 162, 235, 0.6)"
+      }]
+    },
+    options: { responsive:true, animation:false }
   });
 }
 
 // 📉 HISTORY
-window.renderHistory = function () {
-
+window.renderHistory = function(){
   let name = document.getElementById("historySelect").value;
-  if (!items[name]) return;
+  if(!name || !items[name]) return;
 
   let hist = items[name].history || [];
 
-  if (historyChart) historyChart.destroy();
+  if(historyChart) historyChart.destroy();
 
   historyChart = new Chart(document.getElementById("chartHistory"), {
     type: "line",
     data: {
-      labels: hist.map((_, i) => i),
-      datasets: [{ label: name, data: hist }]
+      labels: hist.map((_,i)=>i),
+      datasets: [{
+        label: name,
+        data: hist,
+        borderColor: "red",
+        fill: false
+      }]
     }
   });
-};
+}
 
-// 📺 RENDER UI
-function render() {
-
+// 📺 RENDER
+function render(){
   let q = document.getElementById("search").value.toLowerCase();
-
   let html = "";
 
-  let keys = Object.keys(items);
+  let keys = sortedKeys();
 
-  document.getElementById("historySelect").innerHTML =
-    keys.map(i => `<option value="${i}">${i}</option>`).join("");
+  let select = document.getElementById("historySelect");
+  select.innerHTML = Object.keys(items)
+    .map(i => `<option value="${i}">${i}</option>`)
+    .join("");
 
-  for (let i of keys) {
+  let critical = Object.keys(items).filter(i => items[i].stock <= items[i].min);
 
-    if (!i.toLowerCase().includes(q)) continue;
+  if(critical.length > 0){
+    html += `
+    <div class="card" style="border:2px solid red;">
+      <h3>⚠️ KRITISKE VARER (${critical.length})</h3>
+      <p>${critical.join(", ")}</p>
+    </div>`;
+  }
+
+  for(let i of keys){
+    if(!i.toLowerCase().includes(q)) continue;
 
     let it = items[i];
+    let crit = it.stock <= it.min;
 
     html += `
-      <div class="card">
-        <b>${i}</b><br>
-        📦 ${Math.round(it.stock)}<br>
-        📉 Min: ${it.min}<br>
+    <div class="card">
+      <b>${i}</b><br>
+      📦 ${Math.round(it.stock)}<br>
+      📉 Min: ${it.min}<br>
+      ⏱ ${Math.round(it.lastOrder)} dager siden<br>
 
-        <button onclick="order('${i}')">Smart</button>
-        <button onclick="order('${i}', true)">Manuell</button>
-        <button onclick="adjust('${i}')">Justér</button>
-        <button onclick="deleteItem('${i}')">Slett</button>
-      </div>
-    `;
+      ${crit ? '<div class="bestill">🔴 BESTILL</div>' : ''}
+
+      <button onclick="order('${i}')">📦 Smart</button>
+      <button onclick="order('${i}', true)">🧾 Manuell</button>
+      <button onclick="adjust('${i}')">➖ Juster</button>
+      <button onclick="editItem('${i}')">⚙️ Rediger</button>
+      <button onclick="deleteItem('${i}')">🗑 Slett</button>
+    </div>`;
   }
 
   document.getElementById("app").innerHTML = html;
 
-  drawChart();
+  drawStockChart();
   renderHistory();
 }
 
-// ⏱ REAL CONSUMPTION (DIN FUNKSJON)
-let lastRun = 0;
-
+// ⏱ REAL TIME CONSUMPTION
 function applyRealConsumption(){
-
   let now = Date.now();
 
-  if(now - lastRun < 5000) return;
-  lastRun = now;
-
   for(let i in items){
-
     let item = items[i];
 
     if(!item.lastUpdate){
@@ -247,21 +267,15 @@ function applyRealConsumption(){
     let days = diffMs / (1000 * 60 * 60 * 24);
 
     if(days > 0){
-
       let used = item.usage * days;
 
       item.stock -= used;
       if(item.stock < 0) item.stock = 0;
 
       item.lastOrder += days;
-
-      item.lastUpdate = now;
     }
   }
 }
-
-// 🚀 START
-render();
 
 </script>
 
