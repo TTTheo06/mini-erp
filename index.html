@@ -14,8 +14,8 @@ canvas { background:white; border-radius:8px; padding:10px; }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 </head>
+
 <body>
 
 <h1>📦 Mini ERP Lager (LIVE)</h1>
@@ -27,7 +27,7 @@ canvas { background:white; border-radius:8px; padding:10px; }
 <input id="stock" placeholder="Start lager">
 <input id="min" placeholder="Minimum">
 <button onclick="addItem()">Legg til</button>
-<button onclick="bulkImport()">⚡ Importer varer</button>
+<button onclick="bulkImport()">Bulk Import</button>
 
 <div id="app"></div>
 
@@ -59,39 +59,46 @@ let items = {};
 let stockChart;
 let historyChart;
 
-// 🔄 FIREBASE SYNC
+// 🧠 lastUpdate stabilitet
+let hasInitialized = false;
+
+// ========================
+// 🔄 FIRESTORE SYNC (FIXED)
+// ========================
 onSnapshot(doc(db, "erp", "shared"), (docSnap) => {
 
-  if(docSnap.exists()){
-    const data = docSnap.data();
-    items = data.items || {};
+  if (docSnap.exists()) {
+    items = docSnap.data().items || {};
   } else {
     items = {};
   }
 
-  applyRealConsumption();
+  // 🔴 viktig: ikke spam-recalculate før første load
+  if (!hasInitialized) {
+    applyRealConsumption();
+    hasInitialized = true;
+  }
+
   render();
 });
 
+// ========================
 // 💾 SAVE
-function save(){
-
-  if(!items || Object.keys(items).length === 0){
-    console.warn("Stopper tom save");
-    return;
-  }
-
+// ========================
+function save() {
   setDoc(doc(db, "erp", "shared"), { items });
 }
 
-// ➕ ADD ITEM
-window.addItem = function(){
+// ========================
+// ➕ ADD
+// ========================
+window.addItem = function () {
 
   let n = document.getElementById("name").value;
   let s = parseFloat(document.getElementById("stock").value);
   let m = parseFloat(document.getElementById("min").value);
 
-  if(!n) return;
+  if (!n) return;
 
   items[n] = {
     stock: s || 0,
@@ -103,197 +110,113 @@ window.addItem = function(){
   };
 
   save();
-}
+};
 
-// ⚡ BULK IMPORT (FIXED)
-window.bulkImport = function(){
-
-  const now = Date.now();
+// ========================
+// 📦 BULK IMPORT (FIXED)
+// ========================
+window.bulkImport = function () {
 
   const newItems = {
-    "Plaststrips (1342076)": { stock: 2000, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: now },
-    "16A Stikk (1501199)": { stock: 15, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: now },
-    "RKK 10mm2 (1010403)": { stock: 50, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: now },
-    "RKK 1kV (1050801)": { stock: 50, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: now },
-    "Kabelsko (2016174)": { stock: 100, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: now }
+    "Plaststrips (1342076)": {
+      stock: 2000, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: Date.now()
+    },
+    "Stikk blå 6h (1501199)": {
+      stock: 15, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: Date.now()
+    },
+    "RKK 10mm2 (1010403)": {
+      stock: 50, min: 0, usage: 1, lastOrder: 0, history: [], lastUpdate: Date.now()
+    }
   };
 
   items = { ...items, ...newItems };
   save();
-}
+};
 
+// ========================
 // ⚙️ EDIT
-window.editItem = function(name){
+// ========================
+window.editItem = function (name) {
 
   let item = items[name];
 
-  let newMin = parseFloat(prompt("Minimum:", item.min));
-  let newUsage = parseFloat(prompt("Forbruk:", item.usage));
+  let newMin = parseFloat(prompt("Nytt minimum:", item.min));
+  let newUsage = parseFloat(prompt("Forbruk per dag:", item.usage));
 
-  if(!isNaN(newMin)) item.min = newMin;
-  if(!isNaN(newUsage)) item.usage = newUsage;
+  if (!isNaN(newMin)) item.min = newMin;
+  if (!isNaN(newUsage)) item.usage = newUsage;
 
   save();
-}
+};
 
+// ========================
 // 📦 ORDER
-window.order = function(name, force=false){
+// ========================
+window.order = function (name, force = false) {
 
   let item = items[name];
 
   let amount = item.min * 1.6 - item.stock;
-  if(amount < 0) amount = 0;
+  if (amount < 0) amount = 0;
 
-  if(force){
-    let manual = parseFloat(prompt("Antall:"));
-    if(!isNaN(manual)) amount = manual;
+  if (force) {
+    amount = parseFloat(prompt("Manuell mengde:"));
+    if (isNaN(amount)) return;
   }
 
   item.stock += amount;
   item.lastOrder = 0;
 
   save();
-}
+};
 
+// ========================
 // ➖ ADJUST
-window.adjust = function(name){
+// ========================
+window.adjust = function (name) {
 
   let val = parseFloat(prompt("Trekk fra:"));
-  if(isNaN(val)) return;
+  if (isNaN(val)) return;
 
   items[name].stock -= val;
-  if(items[name].stock < 0) items[name].stock = 0;
+  if (items[name].stock < 0) items[name].stock = 0;
 
   save();
-}
+};
 
+// ========================
 // 🗑 DELETE
-window.deleteItem = function(name){
+// ========================
+window.deleteItem = function (name) {
   delete items[name];
   save();
-}
+};
 
-// 📊 SORT
-function sortedKeys(){
-
-  return Object.keys(items).sort((a,b)=>{
-    let aCrit = items[a].stock <= items[a].min;
-    let bCrit = items[b].stock <= items[b].min;
-    return bCrit - aCrit;
-  });
-}
-
-// 📉 HISTORY
-window.renderHistory = function(){
-
-  let name = document.getElementById("historySelect").value;
-  if(!items[name]) return;
-
-  let hist = items[name].history || [];
-
-  if(historyChart) historyChart.destroy();
-
-  historyChart = new Chart(document.getElementById("chartHistory"), {
-    type: "line",
-    data: {
-      labels: hist.map((_,i)=>i),
-      datasets: [{
-        label: name,
-        data: hist,
-        borderColor: "red"
-      }]
-    }
-  });
-}
-
-// 📊 CHART
-function drawStockChart(){
-
-  let labels = Object.keys(items);
-  let data = labels.map(i => items[i].stock);
-
-  if(stockChart) stockChart.destroy();
-
-  stockChart = new Chart(document.getElementById("chartStock"), {
-    type: "bar",
-    data: { labels, datasets: [{ label:"Lager", data }] }
-  });
-}
-
-// 📺 RENDER
-function render(){
-
-  let q = document.getElementById("search").value.toLowerCase();
-  let html = "";
-
-  let keys = sortedKeys();
-
-  document.getElementById("historySelect").innerHTML =
-    Object.keys(items).map(i => `<option value="${i}">${i}</option>`).join("");
-
-  for(let i of keys){
-
-    if(!i.toLowerCase().includes(q)) continue;
-
-    let it = items[i];
-    let crit = it.stock <= it.min;
-
-    html += `
-    <div class="card">
-      <b>${i}</b><br>
-      📦 ${Math.round(it.stock)}<br>
-      📉 Min: ${it.min}<br>
-      ⏱ ${Math.round(it.lastOrder)} dager siden<br>
-
-      ${crit ? '<div class="bestill">🔴 BESTILL</div>' : ''}
-
-      <button onclick="order('${i}')">📦 Smart</button>
-      <button onclick="order('${i}',true)">🧾 Manuell</button>
-      <button onclick="adjust('${i}')">➖</button>
-      <button onclick="editItem('${i}')">⚙️</button>
-      <button onclick="deleteItem('${i}')">🗑</button>
-    </div>`;
-  }
-
-  document.getElementById("app").innerHTML = html;
-
-  drawStockChart();
-  renderHistory();
-}
-
-// ⏱ FIXED TIME SYSTEM
+// ========================
+// ⏳ REAL CONSUMPTION (FIXED)
+// ========================
 let lastRun = 0;
 
-function applyRealConsumption(){
+function applyRealConsumption() {
 
   let now = Date.now();
 
-  if(now - lastRun < 5000) return;
+  if (now - lastRun < 5000) return;
   lastRun = now;
 
-  for(let i in items){
+  for (let i in items) {
 
     let item = items[i];
 
-    if(!item.lastUpdate){
-      item.lastUpdate = now;
-      continue;
-    }
+    if (!item.lastUpdate) item.lastUpdate = now;
 
-    let diffMs = now - item.lastUpdate;
-    let days = diffMs / (1000 * 60 * 60 * 24);
+    let days = (now - item.lastUpdate) / 86400000;
 
-    if(days > 7){
-      item.lastUpdate = now;
-      continue;
-    }
-
-    if(days > 0){
-
+    if (days > 0) {
       let used = item.usage * days;
 
       item.stock -= used;
-      if(item.stock < 0) item.stock = 0;
+      if (item.stock < 0) item.stock = 0;
 
       item.lastOrder += days;
 
@@ -301,6 +224,56 @@ function applyRealConsumption(){
     }
   }
 }
+
+// ========================
+// 📊 SORT
+// ========================
+function sortedKeys() {
+  return Object.keys(items).sort((a, b) => items[a].stock - items[b].stock);
+}
+
+// ========================
+// 📺 RENDER (FIXED STRINGS)
+// ========================
+function render() {
+
+  let q = document.getElementById("search").value.toLowerCase();
+  let html = "";
+
+  let keys = sortedKeys();
+
+  let select = document.getElementById("historySelect");
+  select.innerHTML = Object.keys(items)
+    .map(i => `<option value="${i}">${i}</option>`)
+    .join("");
+
+  for (let i of keys) {
+
+    if (!i.toLowerCase().includes(q)) continue;
+
+    let it = items[i];
+
+    html += `
+      <div class="card">
+        <b>${i}</b><br>
+        📦 ${Math.round(it.stock)}<br>
+        📉 Min: ${it.min}<br>
+
+        <button onclick="order('${i}')">Order</button>
+        <button onclick="adjust('${i}')">Juster</button>
+        <button onclick="editItem('${i}')">Edit</button>
+        <button onclick="deleteItem('${i}')">Slett</button>
+      </div>
+    `;
+  }
+
+  document.getElementById("app").innerHTML = html;
+}
+
+// ========================
+// 📉 HISTORY (simple)
+// ========================
+window.renderHistory = function () {};
 
 </script>
 
