@@ -123,6 +123,80 @@ window.editItem = function(name){
   save();
 }
 
+window.bulkImport = function(){
+
+  const newItems = {
+    "Plaststrips lange (1342076)": {
+      stock: 2000,
+      min: 0,
+      usage: 1,
+      lastOrder: 0,
+      history: [],
+      lastUpdate: new Date("2026-02-11").getTime()
+    },
+
+    "16A EX STIKK blå 6h (1501199)": {
+      stock: 15,
+      min: 0,
+      usage: 1,
+      lastOrder: 0,
+      history: [],
+      lastUpdate: new Date("2026-02-11").getTime()
+    },
+
+    "RKK 10mm2 BLÅ Dobbeiso A.T (1010403)": {
+      stock: 50,
+      min: 0,
+      usage: 1,
+      lastOrder: 0,
+      history: [],
+      lastUpdate: new Date("2026-03-12").getTime()
+    },
+
+    "RKK 1kV 16 SORT T&K (1050801)": {
+      stock: 50,
+      min: 0,
+      usage: 1,
+      lastOrder: 0,
+      history: [],
+      lastUpdate: new Date("2026-03-12").getTime()
+    },
+
+    "Kabelsko KRDIN 10mm² M10 (2016174)": {
+      stock: 100,
+      min: 0,
+      usage: 1,
+      lastOrder: 0,
+      history: [],
+      lastUpdate: new Date("2026-03-12").getTime()
+    },
+
+    "PRESSKABELSKO KRT 10mm2 M12 (2048615)": {
+      stock: 100,
+      min: 0,
+      usage: 1,
+      lastOrder: 0,
+      history: [],
+      lastUpdate: new Date("2026-03-12").getTime()
+    },
+
+    "Wago koblingsklemme 3 leder (1221963)": {
+      stock: 120,
+      min: 0,
+      usage: 1,
+      lastOrder: 0,
+      history: [],
+      lastUpdate: new Date("2026-03-12").getTime()
+    }
+  };
+
+  // legg til i eksisterende items
+  items = { ...items, ...newItems };
+
+  save();
+}
+  
+
 // 📦 bestilling
 window.order = function(name, force=false){
 
@@ -309,9 +383,15 @@ function render(){
   renderHistory();
 }
 
+let lastRun = 0;
+
 function applyRealConsumption(){
 
   let now = Date.now();
+
+  // 🧠 hindrer at den kjører flere ganger på rad
+  if(now - lastRun < 5000) return;
+  lastRun = now;
 
   for(let i in items){
 
@@ -333,11 +413,10 @@ function applyRealConsumption(){
 
       item.lastOrder += days;
 
-      item.lastUpdate = now; // ✅ viktig
+      item.lastUpdate = now;
     }
   }
 }
-
 </script>
 
 </body>
