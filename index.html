@@ -7,59 +7,14 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body {
-  font-family: system-ui, Arial;
-  background: #0f172a;
-  color: #e5e7eb;
-  padding: 20px;
-}
-
-h1, h3 {
-  color: white;
-}
-
-input, button, select {
-  padding: 10px;
-  margin: 5px 0;
-  border-radius: 8px;
-  border: none;
-  font-size: 14px;
-}
-
-input, select {
-  background: #1e293b;
-  color: white;
-}
-
-button {
-  background: #3b82f6;
-  color: white;
-  cursor: pointer;
-}
-
-button:hover {
-  background: #2563eb;
-}
-
-.card {
-  background: #1e293b;
-  padding: 12px;
-  margin: 10px 0;
-  border-radius: 12px;
-  border: 1px solid #334155;
-}
-
-.bestill {
-  color: #ef4444;
-  font-weight: bold;
-}
-
-canvas {
-  background: #1e293b;
-  border-radius: 12px;
-  padding: 10px;
-}
+body { font-family: Arial; padding: 20px; background:#f4f4f4; }
+.card { background:white; padding:10px; margin:10px 0; border-radius:8px; }
+.bestill { color:red; font-weight:bold; }
+button { padding:6px 10px; margin:3px; cursor:pointer; }
+input { padding:6px; margin:5px; }
+canvas { background:white; border-radius:8px; padding:10px; }
 </style>
+
 </head>
 
 <body>
@@ -73,8 +28,7 @@ canvas {
 <input id="stock" placeholder="Start lager">
 <input id="min" placeholder="Minimum">
 <button onclick="addItem()">Legg til</button>
-
-<button onclick="bulkImport()">⚡ Importer varer</button>
+<button onclick="bulkImport()">Import varer</button>
 
 <div id="app"></div>
 
@@ -102,12 +56,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// 🧠 DATA
 let items = {};
 let stockChart;
 let historyChart;
-let lastRun = 0;
 
-// 🔄 FIREBASE SYNC
+// 🔄 SYNC
 onSnapshot(doc(db, "erp", "shared"), (snap) => {
   if (snap.exists()) {
     items = snap.data().items || {};
@@ -127,6 +81,7 @@ function save() {
 
 // ➕ ADD
 window.addItem = function () {
+
   let n = document.getElementById("name").value;
   let s = parseFloat(document.getElementById("stock").value);
   let m = parseFloat(document.getElementById("min").value);
@@ -162,6 +117,7 @@ window.bulkImport = function () {
 
 // 📦 ORDER
 window.order = function (name, force = false) {
+
   let item = items[name];
 
   let amount = item.min * 1.6 - item.stock;
@@ -179,6 +135,7 @@ window.order = function (name, force = false) {
 
 // ➖ ADJUST
 window.adjust = function (name) {
+
   let val = parseFloat(prompt("Trekk fra:"));
   if (isNaN(val)) return;
 
@@ -194,8 +151,9 @@ window.deleteItem = function (name) {
   save();
 };
 
-// 📊 CHART STOCK
-function drawStockChart() {
+// 📊 CHART
+function drawChart() {
+
   let labels = Object.keys(items);
   let data = labels.map(i => items[i].stock);
 
@@ -203,12 +161,16 @@ function drawStockChart() {
 
   stockChart = new Chart(document.getElementById("chartStock"), {
     type: "bar",
-    data: { labels, datasets: [{ label: "Lager", data }] }
+    data: {
+      labels,
+      datasets: [{ label: "Lager", data }]
+    }
   });
 }
 
 // 📉 HISTORY
 window.renderHistory = function () {
+
   let name = document.getElementById("historySelect").value;
   if (!items[name]) return;
 
@@ -228,6 +190,8 @@ window.renderHistory = function () {
 // 📺 RENDER UI
 function render() {
 
+  let q = document.getElementById("search").value.toLowerCase();
+
   let html = "";
 
   let keys = Object.keys(items);
@@ -236,6 +200,9 @@ function render() {
     keys.map(i => `<option value="${i}">${i}</option>`).join("");
 
   for (let i of keys) {
+
+    if (!i.toLowerCase().includes(q)) continue;
+
     let it = items[i];
 
     html += `
@@ -254,31 +221,46 @@ function render() {
 
   document.getElementById("app").innerHTML = html;
 
-  drawStockChart();
+  drawChart();
   renderHistory();
 }
 
-// ⏱ REAL TIME SIM
-function applyRealConsumption() {
+// ⏱ REAL CONSUMPTION (DIN FUNKSJON)
+let lastRun = 0;
+
+function applyRealConsumption(){
 
   let now = Date.now();
 
-  if (now - lastRun < 5000) return;
+  if(now - lastRun < 5000) return;
   lastRun = now;
 
-  for (let i in items) {
+  for(let i in items){
+
     let item = items[i];
 
-    let diff = (now - item.lastUpdate) / (1000 * 60 * 60 * 24);
+    if(!item.lastUpdate){
+      item.lastUpdate = now;
+    }
 
-    if (diff > 0) {
-      item.stock -= item.usage * diff;
-      if (item.stock < 0) item.stock = 0;
+    let diffMs = now - item.lastUpdate;
+    let days = diffMs / (1000 * 60 * 60 * 24);
+
+    if(days > 0){
+
+      let used = item.usage * days;
+
+      item.stock -= used;
+      if(item.stock < 0) item.stock = 0;
+
+      item.lastOrder += days;
+
       item.lastUpdate = now;
     }
   }
 }
 
+// 🚀 START
 render();
 
 </script>
