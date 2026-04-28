@@ -6,37 +6,59 @@
 
   
 <style>
-body { font-family: Arial; padding: 20px; background:#f4f4f4; }
-.card { background:white; padding:10px; margin:10px 0; border-radius:8px; }
-.bestill { color:red; font-weight:bold; }
-button { padding:6px 10px; margin:3px; cursor:pointer; }
-input { padding:6px; margin:5px; }
-canvas { background:white; border-radius:8px; padding:10px; }
-</style>
+body {
+  font-family: system-ui, Arial;
+  background: #0f172a;
+  color: #e5e7eb;
+  padding: 20px;
+}
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+h1, h3 {
+  color: white;
+}
 
-</head>
-<body>
+input, button, select {
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+}
 
-<h1>📦 Mini ERP Lager (LIVE)</h1>
+input, select {
+  background: #1e293b;
+  color: white;
+}
 
-<input id="search" placeholder="🔍 Søk vare..." oninput="render()">
+button {
+  background: #3b82f6;
+  color: white;
+  cursor: pointer;
+  transition: 0.2s;
+}
 
-<h3>➕ Legg til produkt</h3>
-<input id="name" placeholder="Navn">
-<input id="stock" placeholder="Start lager">
-<input id="min" placeholder="Minimum">
-<button onclick="addItem()">Legg til</button>
+button:hover {
+  background: #2563eb;
+}
 
-<div id="app"></div>
+.card {
+  background: #1e293b;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 12px;
+  border: 1px solid #334155;
+}
 
-<h3>📊 Lager (nåværende)</h3>
-<canvas id="chartStock"></canvas>
+.bestill {
+  color: #ef4444;
+  font-weight: bold;
+}
 
-<h3>📉 Historisk utvikling</h3>
-<select id="historySelect" onchange="renderHistory()"></select>
-<canvas id="chartHistory"></canvas>
+canvas {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 10px;
+}
 
 <script type="module">
 
