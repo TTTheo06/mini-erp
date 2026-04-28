@@ -27,6 +27,7 @@ canvas { background:white; border-radius:8px; padding:10px; }
 <input id="stock" placeholder="Start lager">
 <input id="min" placeholder="Minimum">
 <button onclick="addItem()">Legg til</button>
+<button onclick="bulkImport()">📥 Import varer</button>
 
 <div id="app"></div>
 
@@ -60,22 +61,32 @@ let historyChart;
 
 // 🔄 LIVE SYNC
 onSnapshot(doc(db, "erp", "shared"), (docSnap) => {
+
   if(docSnap.exists()){
-    items = docSnap.data().items || {};
+    let data = docSnap.data();
+    items = data.items || {};
   } else {
     items = {};
   }
+
+  applyRealConsumption(); // ✅ riktig sted
   render();
 });
 
 // 💾 SAVE
 function save(){
-  applyRealConsumption();
+
+  if(!items || Object.keys(items).length === 0){
+    console.warn("⚠️ Stopper lagring av tom data");
+    return;
+  }
+
   setDoc(doc(db, "erp", "shared"), { items });
 }
 
 // ➕ ADD
 window.addItem = function(){
+
   let n = document.getElementById("name").value;
   let s = parseFloat(document.getElementById("stock").value);
   let m = parseFloat(document.getElementById("min").value);
@@ -96,6 +107,7 @@ window.addItem = function(){
 
 // ⚙️ EDIT
 window.editItem = function(name){
+
   let item = items[name];
 
   let newMin = prompt("Nytt minimum:", item.min);
@@ -109,6 +121,7 @@ window.editItem = function(name){
 
 // 📦 ORDER
 window.order = function(name, force=false){
+
   let item = items[name];
 
   let target = item.min * 1.6;
@@ -130,6 +143,7 @@ window.order = function(name, force=false){
 
 // ➖ ADJUST
 window.adjust = function(name){
+
   let val = parseFloat(prompt("Trekk fra lager:"));
   if(isNaN(val)) return;
 
@@ -141,8 +155,27 @@ window.adjust = function(name){
 
 // 🗑 DELETE
 window.deleteItem = function(name){
+
   if(!confirm("Vil du slette " + name + "?")) return;
+
   delete items[name];
+  save();
+}
+
+// 📥 BULK IMPORT
+window.bulkImport = function(){
+
+  const newItems = {
+    "Plaststrips lange (1342076)": { stock: 2000, min:0, usage:1, lastOrder:0, history:[], lastUpdate:new Date("2026-02-11").getTime() },
+    "16A EX STIKK blå 6h (1501199)": { stock: 15, min:0, usage:1, lastOrder:0, history:[], lastUpdate:new Date("2026-02-11").getTime() },
+    "RKK 10mm2 BLÅ Dobbeiso A.T (1010403)": { stock: 50, min:0, usage:1, lastOrder:0, history:[], lastUpdate:new Date("2026-03-12").getTime() },
+    "RKK 1kV 16 SORT T&K (1050801)": { stock: 50, min:0, usage:1, lastOrder:0, history:[], lastUpdate:new Date("2026-03-12").getTime() },
+    "Kabelsko KRDIN 10mm² M10 (2016174)": { stock: 100, min:0, usage:1, lastOrder:0, history:[], lastUpdate:new Date("2026-03-12").getTime() },
+    "PRESSKABELSKO KRT 10mm2 M12 (2048615)": { stock: 100, min:0, usage:1, lastOrder:0, history:[], lastUpdate:new Date("2026-03-12").getTime() },
+    "Wago koblingsklemme 3 leder (1221963)": { stock: 120, min:0, usage:1, lastOrder:0, history:[], lastUpdate:new Date("2026-03-12").getTime() }
+  };
+
+  items = { ...items, ...newItems };
   save();
 }
 
@@ -157,8 +190,9 @@ function sortedKeys(){
   });
 }
 
-// 📊 STOCK CHART
+// 📊 CHART
 function drawStockChart(){
+
   let labels = Object.keys(items);
   let data = labels.map(i => items[i].stock);
 
@@ -171,7 +205,7 @@ function drawStockChart(){
       datasets: [{
         label: "Lager",
         data,
-        backgroundColor: "rgba(54, 162, 235, 0.6)"
+        backgroundColor: "rgba(54,162,235,0.6)"
       }]
     },
     options: { responsive:true, animation:false }
@@ -180,6 +214,7 @@ function drawStockChart(){
 
 // 📉 HISTORY
 window.renderHistory = function(){
+
   let name = document.getElementById("historySelect").value;
   if(!name || !items[name]) return;
 
@@ -203,15 +238,16 @@ window.renderHistory = function(){
 
 // 📺 RENDER
 function render(){
+
   let q = document.getElementById("search").value.toLowerCase();
   let html = "";
 
   let keys = sortedKeys();
 
-  let select = document.getElementById("historySelect");
-  select.innerHTML = Object.keys(items)
-    .map(i => `<option value="${i}">${i}</option>`)
-    .join("");
+  document.getElementById("historySelect").innerHTML =
+    Object.keys(items)
+      .map(i => `<option value="${i}">${i}</option>`)
+      .join("");
 
   let critical = Object.keys(items).filter(i => items[i].stock <= items[i].min);
 
@@ -224,6 +260,7 @@ function render(){
   }
 
   for(let i of keys){
+
     if(!i.toLowerCase().includes(q)) continue;
 
     let it = items[i];
@@ -252,11 +289,18 @@ function render(){
   renderHistory();
 }
 
-// ⏱ REAL TIME CONSUMPTION
+// ⏱ REAL TIME
+let lastRun = 0;
+
 function applyRealConsumption(){
+
   let now = Date.now();
 
+  if(now - lastRun < 5000) return;
+  lastRun = now;
+
   for(let i in items){
+
     let item = items[i];
 
     if(!item.lastUpdate){
@@ -267,12 +311,15 @@ function applyRealConsumption(){
     let days = diffMs / (1000 * 60 * 60 * 24);
 
     if(days > 0){
+
       let used = item.usage * days;
 
       item.stock -= used;
       if(item.stock < 0) item.stock = 0;
 
       item.lastOrder += days;
+
+      item.lastUpdate = now;
     }
   }
 }
