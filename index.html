@@ -6,12 +6,98 @@
 
   
 <style>
-body { font-family: Arial; padding: 20px; background:#f4f4f4; }
-.card { background:white; padding:10px; margin:10px 0; border-radius:8px; }
-.bestill { color:red; font-weight:bold; }
-button { padding:6px 10px; margin:3px; cursor:pointer; }
-input { padding:6px; margin:5px; }
-canvas { background:white; border-radius:8px; padding:10px; }
+body {
+  font-family: system-ui, Arial;
+  margin: 0;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+/* HEADER */
+h1 {
+  margin: 0;
+  padding: 18px 24px;
+  font-size: 20px;
+  background: #111827;
+  border-bottom: 1px solid #1f2937;
+}
+
+/* SEKSJONER */
+h3 {
+  margin: 20px 24px 10px;
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+}
+
+/* INPUT RAD */
+input, select {
+  margin: 6px 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #0b1220;
+  color: white;
+  font-size: 13px;
+}
+
+/* KNAPPER (ROLIGE) */
+button {
+  padding: 7px 10px;
+  margin: 3px;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  background: #111827;
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #3b82f6;
+  color: white;
+}
+
+/* APP LAYOUT */
+#app {
+  padding: 10px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ENKEL RAD */
+.card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 10px 12px;
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 10px;
+}
+
+/* TEKST */
+.card b {
+  font-weight: 500;
+}
+
+/* KRITISK VARSEL */
+.bestill {
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* CHARTS */
+canvas {
+  background: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  margin: 10px 24px;
+  padding: 10px;
+}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
