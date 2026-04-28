@@ -309,9 +309,15 @@ function render(){
   renderHistory();
 }
 
+let lastRun = 0;
+
 function applyRealConsumption(){
 
   let now = Date.now();
+
+  // 🧠 hindrer at den kjører flere ganger på rad
+  if(now - lastRun < 5000) return;
+  lastRun = now;
 
   for(let i in items){
 
@@ -333,7 +339,7 @@ function applyRealConsumption(){
 
       item.lastOrder += days;
 
-      item.lastUpdate = now; // ✅ viktig
+      item.lastUpdate = now;
     }
   }
 }
