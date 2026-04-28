@@ -66,23 +66,22 @@ onSnapshot(doc(db, "erp", "shared"), (docSnap) => {
 
   if(docSnap.exists()){
     let data = docSnap.data();
-
-    if(data.items){
-      items = data.items;
-    } else {
-      items = {};
-    }
-
+    items = data.items || {};
   } else {
     items = {};
   }
+
+  applyRealConsumption(); // ✅ riktig sted
 
   render();
 });
 
 // 💾 LAGRE TIL FIRESTORE
 function save(){
-  applyRealConsumption(); // 👈 viktig
+    if(!items || Object.keys(items).length === 0){
+    console.warn("⚠️ Stopper lagring av tom data");
+    return;
+  }
   setDoc(doc(db, "erp", "shared"), { items });
 }
 
@@ -334,7 +333,7 @@ function applyRealConsumption(){
 
       item.lastOrder += days;
 
-      // 🔴 VIKTIG: ikke oppdater lastUpdate her
+      item.lastUpdate = now; // ✅ viktig
     }
   }
 }
