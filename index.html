@@ -122,6 +122,12 @@ canvas {
 <input id="name" placeholder="Navn">
 <input id="stock" placeholder="Start lager">
 <input id="min" placeholder="Minimum">
+
+<select id="unit">
+  <option value="stk">stk</option>
+  <option value="meter">meter</option>
+</select>
+
 <button onclick="addItem()">Legg til</button>
 
 <div id="app"></div>
@@ -189,10 +195,13 @@ window.addItem = function(){
 
   if(!n) return;
 
- items[n] = {
+ let u = document.getElementById("unit").value;
+
+items[n] = {
   stock: s || 0,
   min: m || 0,
   usage: 1,
+  unit: u,   // 👈 NY
   lastOrder: 0,
   history: [],
   lastUpdate: Date.now()
@@ -458,7 +467,7 @@ function render(){
     html += `
     <div class="card">
       <b>${i}</b><br>
-      📦 ${Math.round(it.stock)}<br>
+      📦 ${Math.round(it.stock)} ${it.unit || "stk"}
       📉 Min: ${it.min}<br>
       ⏱ ${it.lastOrder} dager siden<br>
 
