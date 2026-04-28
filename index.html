@@ -335,7 +335,7 @@ function applyRealConsumption(){
 
       item.lastOrder += days;
 
-      // 🔴 VIKTIG: ikke oppdater lastUpdate her
+      item.lastUpdate = now; // ✅ DETTE VAR DET SOM MANGLER
     }
   }
 }
