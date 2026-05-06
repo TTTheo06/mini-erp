@@ -123,6 +123,13 @@ canvas {
 <input id="stock" placeholder="Start lager">
 <input id="min" placeholder="Minimum">
 
+ <select id="mode">
+  <option value="consumption">Forbruk (auto)</option>
+  <option value="periodic">Fast intervall</option>
+</select>
+
+<input id="interval" placeholder="Dager (kun periodic)"> 
+  
 <select id="unit">
   <option value="stk">stk</option>
   <option value="meter">meter</option>
@@ -192,21 +199,26 @@ window.addItem = function(){
   let n = document.getElementById("name").value;
   let s = parseFloat(document.getElementById("stock").value);
   let m = parseFloat(document.getElementById("min").value);
+  let u = document.getElementById("unit").value;
+
+  let mode = document.getElementById("mode").value;
+  let interval = parseFloat(document.getElementById("interval").value);
 
   if(!n) return;
 
- let u = document.getElementById("unit").value;
+  items[n] = {
+    stock: s || 0,
+    min: m || 0,
+    usage: 1,
+    unit: u,
+    lastOrder: 0,
+    history: [],
+    lastUpdate: Date.now(),
 
-items[n] = {
-  stock: s || 0,
-  min: m || 0,
-  usage: 1,
-  unit: document.getElementById("unit").value, // 👈 NY
-  lastOrder: 0,
-  history: [],
-  lastUpdate: Date.now()
-};
-  
+    mode: mode || "consumption",
+    interval: interval || 90
+  };
+
   save();
 }
 
@@ -377,14 +389,32 @@ function sortedKeys(){
 
   return Object.keys(items).sort((a,b)=>{
 
-    let aCrit = items[a].stock <= items[a].min;
-    let bCrit = items[b].stock <= items[b].min;
+    let A = items[a];
+    let B = items[b];
 
-    if(aCrit !== bCrit){
-      return bCrit - aCrit;
+    let modeA = A.mode || "consumption";
+    let modeB = B.mode || "consumption";
+
+    let critA = false;
+    let critB = false;
+
+    if(modeA === "consumption"){
+      critA = A.stock <= A.min;
+    } else {
+      critA = A.lastOrder >= (A.interval || 90);
     }
 
-    return items[a].stock - items[b].stock;
+    if(modeB === "consumption"){
+      critB = B.stock <= B.min;
+    } else {
+      critB = B.lastOrder >= (B.interval || 90);
+    }
+
+    if(critA !== critB){
+      return critB - critA;
+    }
+
+    return A.stock - B.stock;
   });
 }
 
@@ -447,7 +477,22 @@ function render(){
     .map(i => `<option value="${i}">${i}</option>`)
     .join("");
 
-  let critical = Object.keys(items).filter(i => items[i].stock <= items[i].min);
+ let critical = Object.keys(items).filter(i => {
+
+  let it = items[i];
+  let mode = it.mode || "consumption";
+  let interval = it.interval || 90;
+
+  if(mode === "consumption"){
+    return it.stock <= it.min;
+  }
+
+  if(mode === "periodic"){
+    return it.lastOrder >= interval;
+  }
+
+  return false;
+});
 
   if(critical.length > 0){
     html += `
@@ -457,19 +502,43 @@ function render(){
     </div>`;
   }
 
-  for(let i of keys){
+ for(let i of keys){
 
-    if(!i.toLowerCase().includes(q)) continue;
+  if(!i.toLowerCase().includes(q)) continue;
 
-    let it = items[i];
-    let crit = it.stock <= it.min;
+  let it = items[i];
 
+  let mode = it.mode || "consumption";
+  let info = "";
+
+  let crit = false;
+
+  if(mode === "consumption"){
+    crit = it.stock <= it.min;
+  }
+
+  if(mode === "periodic"){
+    crit = it.lastOrder >= (it.interval || 90);
+  }
+
+  // 👇 HER ER STEG 3
+  if(mode === "consumption"){
+    info = `
+      📦 ${Math.round(it.stock)} ${it.unit}
+      📉 Min: ${it.min}
+    `;
+  }
+
+  if(mode === "periodic"){
+    info = `
+      🔁 Bestilles hver ${it.interval || 90} dager
+    `;
+  }
     html += `
     <div class="card">
       <b>${i}</b><br>
-      📦 ${Math.round(it.stock)} ${it.unit || "stk"}
-      📉 Min: ${it.min}<br>
-      ⏱ ${it.lastOrder} dager siden<br>
+${info}<br>
+⏱ ${Math.floor(it.lastOrder)} dager siden<br>
 
       ${crit ? '<div class="bestill">🔴 BESTILL</div>' : ''}
 
@@ -510,14 +579,25 @@ function applyRealConsumption(){
 
     if(days > 0){
 
-      let used = item.usage * days;
+if(item.mode === "consumption"){
+  let used = item.usage * days;
 
-      item.stock -= used;
-      if(item.stock < 0) item.stock = 0;
+  item.stock -= used;
+  if(item.stock < 0) item.stock = 0;
+}
+
+// periodic = ingen forbruk
 
       item.lastOrder += days;
 
       item.lastUpdate = now;
+      
+      if(!item.history) item.history = [];
+item.history.push(item.stock);
+
+if(item.history.length > 30){
+  item.history.shift();
+}
     }
   }
 }
